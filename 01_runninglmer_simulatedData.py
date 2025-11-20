@@ -13,7 +13,11 @@ from rpy2.robjects import r, globalenv
 from rpy2.robjects.packages import importr
 from rpy2.robjects.conversion import localconverter
 from rpy2.robjects import pandas2ri
-
+import matplotlib.pyplot as plt
+import numpy as np
+from numpy import random
+import math
+import seaborn as sns
 
 def run_mixed_model(
     df: pd.DataFrame,
@@ -73,15 +77,13 @@ def run_mixed_model(
     model_summary = base.summary(model)
     anova_table = stats.anova(model)
     return model_summary, anova_table
-import numpy as np
-import pandas as pd
-from numpy import random
-import math
+
 
 
 def generate_dataframe(
     n_samples,
     n_subjects,
+    distribution,
     sigma_observation,
     beta_variability,
     intercept_variability,
@@ -101,28 +103,46 @@ def generate_dataframe(
     records = []  # list of rows to build long dataframe
 
     for s in range(1, n_subjects + 1):
-
-        # subject-level slope and intercept
-        beta_subject = random.normal(loc=beta_group, scale=beta_variability)
-        k_subject = random.normal(loc=intercept_group, scale=intercept_variability)
-
         # x for all samples of this subject
         x_vals = random.random(n_samples)
 
         # observation noise for each sample
         noise_vals = random.normal(loc=0, scale=sigma_observation, size=n_samples)
+            
+        if(distribution=="normal"):
+            # subject-level slope and intercept
+            beta_subject = random.normal(loc=beta_group, scale=beta_variability)
+            k_subject = random.normal(loc=intercept_group, scale=intercept_variability)
 
-        # linear model
-        y_vals = beta_subject * x_vals + k_subject + noise_vals
+            # linear model
+            y_vals = beta_subject * x_vals + k_subject + noise_vals
+
+        elif(distribution=="log_normal"):
+            # subject-level slope and intercept
+            beta_subject = random.lognormal(mean=beta_group, sigma=beta_variability)
+            k_subject = random.lognormal(mean=intercept_group, sigma=intercept_variability)
+            
+            # linear model
+            y_vals = beta_subject * x_vals + k_subject + noise_vals
+
 
         # append each row
         for i in range(n_samples):
             records.append([s, y_vals[i], x_vals[i]])
 
+       # plt.hist(y_vals, label=f"subj {s}")
+        ax=y_vals.plot.kde()
+        
     df = pd.DataFrame(records, columns=["subject",  "depVar","fixed1"])
+
+    plt.xlabel('fixed1')
+    plt.ylabel('depVar')
+    plt.title('Simulated Data for {distribution} Distribution'.format(distribution=distribution))
+    plt.legend()
+    plt.show()
+    plt.savefig('simulated_data_{distribution}.png'.format(distribution=distribution))
+
     return df
-
-
 
 
 
@@ -131,9 +151,9 @@ def main():
     # -----------------------------
     # Example Usage
     # -----------------------------
-    n_samples = 10
+    n_samples = 1000
     n_subjects = 10
-
+    distribution="log_normal"
     sigma_observation = 1 / math.sqrt(2)
     beta_variability = 1
     intercept_variability = 1 / math.sqrt(2)
@@ -144,6 +164,7 @@ def main():
     df = generate_dataframe(
         n_samples=n_samples,
         n_subjects=n_subjects,
+        distribution=distribution,
         sigma_observation=sigma_observation,
         beta_variability=beta_variability,
         intercept_variability=intercept_variability,
@@ -151,18 +172,18 @@ def main():
         intercept_group=intercept_group,
     )
 
-    # Define model variables
-    dep_var = "depVar"
-    fixed_effects = ["fixed1"]
-    random_effects = ["subject"]
-    use_lmerTest = True
+    # # Define model variables
+    # dep_var = "depVar"
+    # fixed_effects = ["fixed1"]
+    # random_effects = ["subject"]
+    # use_lmerTest = True
 
-    summary, anova = run_mixed_model(df, dep_var, fixed_effects, random_effects, use_lmerTest)
+    # summary, anova = run_mixed_model(df, dep_var, fixed_effects, random_effects, use_lmerTest)
 
-    print("\n=== Model Summary ===")
-    print(summary)
-    print("\n=== ANOVA Table ===")
-    print(anova)
+    # print("\n=== Model Summary ===")
+    # print(summary)
+    # print("\n=== ANOVA Table ===")
+    # print(anova)
 
 
 
